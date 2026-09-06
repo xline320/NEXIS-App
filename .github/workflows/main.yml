@@ -9,11 +9,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-    - name: Unzip all zip files
+    - name: Unzip archives if present
       run: |
-        find . -maxdepth 2 -name "*.zip" -exec unzip -o {} -d . \;
+        find . -maxdepth 2 -name "*.zip" -exec unzip -o {} -d . \; || true
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -21,40 +22,61 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Create Dummy Files (Keystore & Google Services)
+    - name: Create Debug Keystore
       run: |
-        # Create dummy debug.keystore where expected
-        keytool -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
-        
-        # Copy keystore to root and subdirectories
+        keytool -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000 -nogenerate
         find . -type d -exec cp debug.keystore {}/ \; 2>/dev/null || true
 
-        # Create dummy google-services.json
-        DUMMY_JSON='{"project_info":{"project_number":"123456789","project_id":"nexis-app","storage_bucket":"nexis.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789:android:123456789","android_client_info":{"package_name":"com.example.nexis"}},"oauth_client":[],"api_key":[{"current_key":"dummy_key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}]}'
-        
-        # Place google-services.json in all app modules
-        find . -name "src" -type d | while read dir; do
-          mkdir -p "$dir/../"
-          echo "$DUMMY_JSON" > "$dir/../google-services.json"
-        done
+    - name: Create Dummy Google Services JSON
+      run: |
+        mkdir -p app
+        cat << 'EOF' > app/google-services.json
+        {
+          "project_info": {
+            "project_number": "123456789",
+            "project_id": "dummy-project",
+            "storage_bucket": "dummy-project.appspot.com"
+          },
+          "client": [
+            {
+              "client_info": {
+                "mobilesdk_app_id": "1:123456789:android:123456789",
+                "android_client_info": {
+                  "package_name": "com.example.app"
+                }
+              },
+              "oauth_client": [],
+              "api_key": [
+                {
+                  "current_key": "dummy_api_key"
+                }
+              ],
+              "services": {
+                "appinvite_service": {
+                  "other_platform_oauth_client": []
+                }
+              }
+            }
+          ]
+        }
+        EOF
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Build with Gradle
+    - name: Build Debug APK
       run: |
-        GRADLEW=$(find . -name gradlew | head -n 1)
-        if [ -f "$GRADLEW" ]; then
-          chmod +x "$GRADLEW"
-          cd $(dirname "$GRADLEW")
-          ./gradlew assembleDebug -x validateSigningDebug
+        if [ -f "./gradlew" ]; then
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
         else
-          gradle assembleDebug -x validateSigningDebug
+          gradle assembleDebug --no-daemon --stacktrace
         fi
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
+      if: always()
       with:
-        name: nexis-app-debug
+        name: app-debug-apk
         path: "**/build/outputs/apk/debug/*.apk"
         
