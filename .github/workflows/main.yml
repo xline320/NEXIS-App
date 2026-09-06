@@ -22,55 +22,32 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Create Debug Keystore
+    - name: Create Dummy Files
       run: |
+        # Generate Keystore
         keytool -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+        
+        # Copy keystore to every folder just in case
         find . -type d -exec cp debug.keystore {}/ \; 2>/dev/null || true
 
-    - name: Create Dummy Google Services JSON
-      run: |
-        mkdir -p app
-        cat << 'EOF' > app/google-services.json
-        {
-          "project_info": {
-            "project_number": "123456789",
-            "project_id": "dummy-project",
-            "storage_bucket": "dummy-project.appspot.com"
-          },
-          "client": [
-            {
-              "client_info": {
-                "mobilesdk_app_id": "1:123456789:android:123456789",
-                "android_client_info": {
-                  "package_name": "com.example.app"
-                }
-              },
-              "oauth_client": [],
-              "api_key": [
-                {
-                  "current_key": "dummy_api_key"
-                }
-              ],
-              "services": {
-                "appinvite_service": {
-                  "other_platform_oauth_client": []
-                }
-              }
-            }
-          ]
-        }
-        EOF
+        # Create dummy google-services.json
+        DUMMY_JSON='{"project_info":{"project_number":"123456789","project_id":"dummy-app","storage_bucket":"dummy.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789:android:123456789","android_client_info":{"package_name":"com.example.app"}},"oauth_client":[],"api_key":[{"current_key":"dummy_key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}]}'
+        
+        find . -name "src" -type d | while read dir; do
+          mkdir -p "$dir/../"
+          echo "$DUMMY_JSON" > "$dir/../google-services.json"
+        done
 
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Build Debug APK
+    - name: Build APK
       run: |
         if [ -f "./gradlew" ]; then
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --continue --stacktrace
         else
-          gradle assembleDebug --no-daemon --stacktrace
+          gradle assembleDebug --continue --stacktrace
         fi
 
     - name: Upload APK Artifact
@@ -78,4 +55,5 @@ jobs:
       if: always()
       with:
         name: app-debug-apk
-        path: "**/build/outputs/apk/debug/*.apk"
+        path: "**/build/outputs/apk/**/*.apk"
+        
