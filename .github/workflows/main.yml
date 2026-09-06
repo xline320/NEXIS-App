@@ -12,33 +12,39 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    - name: Extract nexis.zip
+      run: |
+        if [ -f "nexis.zip" ]; then
+          echo "Extracting nexis.zip..."
+          unzip -o nexis.zip -d extracted_project
+          # Move all extracted files to root directory if they were inside a subfolder
+          if [ -d extracted_project ]; then
+            cp -r extracted_project/* . 2>/dev/null || true
+            cp -r extracted_project/.* . 2>/dev/null || true
+          fi
+        fi
+
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Gradle Environment
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: 8.7
-
-    - name: Create Dummy Files
+    - name: Grant execute permission for gradlew
       run: |
-        keytool -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
-        find . -type d -exec cp debug.keystore {}/ \; 2>/dev/null || true
+        find . -name "gradlew" -exec chmod +x {} \;
 
-        DUMMY_JSON='{"project_info":{"project_number":"123456789","project_id":"dummy-app","storage_bucket":"dummy.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789:android:123456789","android_client_info":{"package_name":"com.example.app"}},"oauth_client":[],"api_key":[{"current_key":"dummy_key"}],"services":{"appinvite_service":{"other_platform_oauth_client":[]}}}]}'
-        find . -name "src" -type d | while read dir; do
-          mkdir -p "$dir/../"
-          echo "$DUMMY_JSON" > "$dir/../google-services.json"
-        done
-
-    - name: Build APK Direct Command
-      env:
-        GRADLE_OPTS: "-Djava.awt.headless=true -Dksp.run.in.process=true -Dorg.gradle.daemon=false"
+    - name: Build APK
       run: |
-        gradle assembleDebug --no-daemon --continue || ./gradlew assembleDebug --no-daemon --continue
+        GRADLE_CMD=$(find . -name "gradlew" | head -n 1)
+        if [ -n "$GRADLE_CMD" ]; then
+          DIR=$(dirname "$GRADLE_CMD")
+          cd "$DIR"
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+        else
+          gradle assembleDebug --no-daemon
+        fi
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
