@@ -12,15 +12,12 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    - name: Extract nexis.zip
+    - name: Extract Project Zip if present
       run: |
         if [ -f "nexis.zip" ]; then
-          echo "Extracting nexis.zip..."
-          unzip -o nexis.zip -d extracted_project
-          if [ -d extracted_project ]; then
-            cp -r extracted_project/* . 2>/dev/null || true
-            cp -r extracted_project/.* . 2>/dev/null || true
-          fi
+          unzip -o nexis.zip -d extracted/
+          cp -rn extracted/* . 2>/dev/null || true
+          cp -rn extracted/.* . 2>/dev/null || true
         fi
 
     - name: Set up JDK 17
@@ -29,24 +26,19 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-
-    - name: Build APK with KSP Fix
-      env:
-        GRADLE_OPTS: "-Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false"
+    - name: Grant Gradle Execution
       run: |
-        GRADLE_CMD=$(find . -name "gradlew" | head -n 1)
-        if [ -n "$GRADLE_CMD" ]; then
-          DIR=$(dirname "$GRADLE_CMD")
-          cd "$DIR"
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon -Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false
-        else
-          gradle assembleDebug --no-daemon -Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false
-        fi
+        chmod +x gradlew || true
+        find . -name "gradlew" -exec chmod +x {} \;
 
-    - name: Upload APK Artifact
+    - name: Build Debug APK
+      env:
+        JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false"
+        GRADLE_OPTS: "-Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false -Dorg.gradle.daemon=false"
+      run: |
+        ./gradlew assembleDebug --no-daemon --stacktrace || gradle assembleDebug --no-daemon --stacktrace
+
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       if: always()
       with:
