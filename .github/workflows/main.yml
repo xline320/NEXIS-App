@@ -27,7 +27,7 @@ jobs:
         # Generate Keystore
         keytool -genkeypair -alias androiddebugkey -keypass android -keystore debug.keystore -storepass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
         
-        # Copy keystore to root and app directory
+        # Copy keystore to subfolders
         find . -type d -exec cp debug.keystore {}/ \; 2>/dev/null || true
 
         # Create dummy google-services.json
@@ -43,13 +43,13 @@ jobs:
 
     - name: Build APK with KSP & Headless Fix
       env:
-        GRADLE_OPTS: "-Djava.awt.headless=true -Dorg.gradle.daemon=false"
+        GRADLE_OPTS: "-Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false"
       run: |
         if [ -f "./gradlew" ]; then
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon -Djava.awt.headless=true
+          ./gradlew assembleDebug --no-daemon -Djava.awt.headless=true -Dksp.run.in.process=true
         else
-          gradle assembleDebug --no-daemon -Djava.awt.headless=true
+          gradle assembleDebug --no-daemon -Djava.awt.headless=true -Dksp.run.in.process=true
         fi
 
     - name: Upload APK Artifact
