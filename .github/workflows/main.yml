@@ -17,7 +17,6 @@ jobs:
         if [ -f "nexis.zip" ]; then
           echo "Extracting nexis.zip..."
           unzip -o nexis.zip -d extracted_project
-          # Move all extracted files to root directory if they were inside a subfolder
           if [ -d extracted_project ]; then
             cp -r extracted_project/* . 2>/dev/null || true
             cp -r extracted_project/.* . 2>/dev/null || true
@@ -30,20 +29,21 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Grant execute permission for gradlew
-      run: |
-        find . -name "gradlew" -exec chmod +x {} \;
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
 
-    - name: Build APK
+    - name: Build APK with KSP Fix
+      env:
+        GRADLE_OPTS: "-Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false"
       run: |
         GRADLE_CMD=$(find . -name "gradlew" | head -n 1)
         if [ -n "$GRADLE_CMD" ]; then
           DIR=$(dirname "$GRADLE_CMD")
           cd "$DIR"
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon -Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false
         else
-          gradle assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon -Djava.awt.headless=true -Dksp.run.in.process=true -Dksp.incremental=false
         fi
 
     - name: Upload APK Artifact
